@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/pg": "^8.20.0",
     "axios": "^1.15.0",
     "dotenv": "^17.4.2",
     "node-cron": "^4.2.1",
