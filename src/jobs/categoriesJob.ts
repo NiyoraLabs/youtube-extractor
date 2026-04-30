@@ -1,25 +1,32 @@
 import { pool } from "../db/db";
 import { fetchYoutubeCategories } from "../modules/youtube/category.service";
 import { CategoryItem, CategorySuccessResponse } from "../modules/youtube/youtube.types";
+import { logger } from "../utils/logger";
+import {
+	createDatabaseError,
+	createValidationError,
+} from "../utils/errorHandler";
 
 const CATEGORY_COLUMNS = ["id", "name", "region", "assignable"];
 
 function validateYoutubeCategoryResponse(response: CategorySuccessResponse): void {
 	if (!response?.items || !Array.isArray(response.items) || response.items.length === 0) {
-		throw new Error("YouTube categories response is empty or invalid.");
+		throw createValidationError("YouTube categories response is empty or invalid.", {
+			response,
+		});
 	}
 
 	for (const category of response.items) {
 		if (!category?.id || !category.snippet?.title) {
-			throw new Error(`Invalid category payload detected: ${JSON.stringify(category)}`);
+			throw createValidationError("Invalid category payload detected.", {
+				categoryId: category?.id,
+				title: category?.snippet?.title,
+			});
 		}
 	}
 }
 
 function buildCategoryUpsertQuery(items: CategoryItem[], region: string) {
-	if (!region) {
-		throw new Error('Region is required');
-	}
 	const values: Array<string | boolean> = [];
 	const rows = items.map((item, index) => {
 		const offset = index * CATEGORY_COLUMNS.length;
@@ -37,12 +44,24 @@ function buildCategoryUpsertQuery(items: CategoryItem[], region: string) {
 }
 
 async function getRegionCategoryCount(region: string): Promise<number> {
-	const result = await pool.query(
-		`SELECT COUNT(*) AS count FROM youtube_categories WHERE region = $1`,
-		[region]
-	);
+	try {
+		const result = await pool.query(
+			`SELECT COUNT(*) AS count FROM youtube_categories WHERE region = $1`,
+			[region]
+		);
 
-	return Number(result.rows[0]?.count ?? 0);
+		return Number(result.rows[0]?.count ?? 0);
+	} catch (error) {
+		logger.error(
+			"Failed to query category count",
+			error instanceof Error ? error : new Error(String(error)),
+			{ region }
+		);
+		throw createDatabaseError(
+			`Failed to query category count for region ${region}`,
+			error instanceof Error ? error : new Error(String(error))
+		);
+	}
 }
 
 async function upsertCategories(items: CategoryItem[], region: string): Promise<void> {
@@ -52,27 +71,57 @@ async function upsertCategories(items: CategoryItem[], region: string): Promise<
 		const query = buildCategoryUpsertQuery(items, region);
 		await client.query(query.text, query.values);
 		await client.query("COMMIT");
+
+		logger.debug("Category upsert transaction committed", {
+			region,
+			itemCount: items.length,
+		});
 	} catch (error) {
 		await client.query("ROLLBACK");
-		throw error;
+
+		logger.error(
+			"Category upsert transaction failed, rolled back",
+			error instanceof Error ? error : new Error(String(error)),
+			{ region, itemCount: items.length }
+		);
+
+		throw createDatabaseError(
+			`Failed to upsert categories for region ${region}`,
+			error instanceof Error ? error : new Error(String(error))
+		);
 	} finally {
 		client.release();
 	}
 }
 
 export async function ensureCategoriesSeeded(region = "NG") {
-	const count = await getRegionCategoryCount(region);
-	if (count > 0) {
-		console.log(`youtube_categories already seeded for region=${region}. row_count=${count}`);
-		return;
+	try {
+		const count = await getRegionCategoryCount(region);
+		if (count > 0) {
+			logger.info(`youtube_categories already seeded`, {
+				region,
+				rowCount: count,
+			});
+			return;
+		}
+
+		logger.info(`youtube_categories is empty for region, starting seed`, { region });
+
+		const categoriesResponse = await fetchYoutubeCategories();
+		validateYoutubeCategoryResponse(categoriesResponse);
+
+		await upsertCategories(categoriesResponse.items, region);
+
+		logger.info(`YouTube categories seeded successfully`, {
+			region,
+			count: categoriesResponse.items.length,
+		});
+	} catch (error) {
+		logger.error(
+			"Categories seeding failed",
+			error instanceof Error ? error : new Error(String(error)),
+			{ region }
+		);
+		throw error;
 	}
-
-	console.log(`youtube_categories is empty for region=${region}. Fetching categories from YouTube...`);
-
-	const categoriesResponse = await fetchYoutubeCategories();
-	validateYoutubeCategoryResponse(categoriesResponse);
-
-	await upsertCategories(categoriesResponse.items, region);
-
-	console.log(`Seeded ${categoriesResponse.items.length} YouTube categories for region=${region}.`);
 }
