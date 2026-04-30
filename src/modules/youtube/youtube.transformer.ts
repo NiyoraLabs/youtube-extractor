@@ -1,6 +1,7 @@
 import { parseDuration } from "../../utils/durationParser";
+import { VideoDetailItem } from "./youtube.types";
 
-export function transform(video: any) {
+export function transform(video: VideoDetailItem) {
   const snippet = video.snippet;
   const stats = video.statistics;
   const content = video.contentDetails;
@@ -20,5 +21,6 @@ export function transform(video: any) {
     view_count: Number(stats.viewCount || 0),
     like_count: Number(stats.likeCount || 0),
     comment_count: Number(stats.commentCount || 0),
+    category_id: snippet.categoryId,
   };
 }

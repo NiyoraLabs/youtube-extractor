@@ -5,15 +5,16 @@ export async function upsertVideo(video: any) {
     INSERT INTO videos (
       id, title, description, title_length, description_length,
       tag_count, duration_seconds, publish_hour, publish_day,
-      view_count, like_count, comment_count
+      view_count, like_count, comment_count, category_id
     )
     VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
     )
     ON CONFLICT (id) DO UPDATE SET
       view_count = EXCLUDED.view_count,
       like_count = EXCLUDED.like_count,
-      comment_count = EXCLUDED.comment_count
+      comment_count = EXCLUDED.comment_count,
+      category_id = EXCLUDED.category_id
   `;
 
   const values = [
@@ -29,6 +30,7 @@ export async function upsertVideo(video: any) {
     video.view_count,
     video.like_count,
     video.comment_count,
+    video.category_id,
   ];
 
   await pool.query(query, values);
