@@ -2,6 +2,7 @@ import axios from "axios";
 import { env } from "../../config/env";
 import { withRetry } from "../../utils/retry";
 import { rateLimit } from "../../utils/rateLimiter";
+import { VideoDetailResponse } from "./youtube.types";
 
 
 const wait = rateLimit(200);
@@ -24,7 +25,7 @@ export async function searchVideos(query: string, pageToken?: string) {
 	})
 }
 
-export async function getVideosDetails(ids: string[]) {
+export async function getVideosDetails(ids: string[]):Promise<VideoDetailResponse[]> {
 	return withRetry(async () => {
 		await wait();
 		const res = await axios.get(`${env.BASE_URL}/videos`, {
