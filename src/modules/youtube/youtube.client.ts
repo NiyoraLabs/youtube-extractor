@@ -9,6 +9,9 @@ import { createApiError } from "../../utils/errorHandler";
 const wait = rateLimit(200);
 
 export async function searchVideos(query: string, pageToken?: string) {
+	if (!query) {
+  throw new Error('Search query is required');
+}
 	return withRetry(async () => {
 		try {
 			await wait();
