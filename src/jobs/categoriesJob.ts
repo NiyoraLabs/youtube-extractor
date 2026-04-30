@@ -17,6 +17,9 @@ function validateYoutubeCategoryResponse(response: CategorySuccessResponse): voi
 }
 
 function buildCategoryUpsertQuery(items: CategoryItem[], region: string) {
+	if (!region) {
+		throw new Error('Region is required');
+	}
 	const values: Array<string | boolean> = [];
 	const rows = items.map((item, index) => {
 		const offset = index * CATEGORY_COLUMNS.length;
