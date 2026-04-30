@@ -1,3 +1,4 @@
+import { logger } from "../utils/logger";
 import { pool } from "./db";
 
 export async function createCategoriesTable() {
@@ -14,7 +15,7 @@ export async function createCategoriesTable() {
 		`);
 
 	} catch (error) {
-		console.error("Error creating youtube_categories table:", error);
+		logger.error("Error creating youtube_categories table:", error as Error);
 		throw error;
 	}
 }
